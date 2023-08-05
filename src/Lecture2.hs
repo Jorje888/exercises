@@ -17,6 +17,7 @@ challenging exercises. You don't need to solve them to finish the
 course but you can if you like challenges :)
 -}
 
+
 module Lecture2
     ( -- * Normal
       lazyProduct
@@ -41,7 +42,7 @@ module Lecture2
     ) where
 
 -- VVV If you need to import libraries, do it after this line ... VVV
-
+import Data.Char
 -- ^^^ and before this line. Otherwise the test suite might fail  ^^^
 
 {- | Implement a function that finds a product of all the numbers in
@@ -49,20 +50,31 @@ the list. But implement a lazier version of this function: if you see
 zero, you can stop calculating product and return 0 immediately.
 
 >>> lazyProduct [4, 3, 7]
-84
+WAS 84
+NOW <stderr>: hPutChar: invalid argument (invalid character)
 -}
 lazyProduct :: [Int] -> Int
-lazyProduct = error "TODO"
+lazyProduct list =
+  let lazyTailRec listo acc = case listo of
+                            [] -> acc
+                            0:_ -> 0
+                            x:xs ->  lazyTailRec xs (acc + x)
+  in lazyTailRec list 0
+
 
 {- | Implement a function that duplicates every element in the list.
 
 >>> duplicate [3, 1, 2]
-[3,3,1,1,2,2]
+WAS WAS [3,3,1,1,2,2]
+WAS NOW <stderr>: hPutChar: invalid argument (invalid character)
+NOW <stderr>: hPutChar: invalid argument (invalid character)
 >>> duplicate "cab"
-"ccaabb"
+WAS WAS "ccaabb"
+WAS NOW <stderr>: hPutChar: invalid argument (invalid character)
+NOW <stderr>: hPutChar: invalid argument (invalid character)
 -}
 duplicate :: [a] -> [a]
-duplicate = error "TODO"
+duplicate = concatMap (\x -> [x,x])
 
 {- | Implement function that takes index and a list and removes the
 element at the given position. Additionally, this function should also
@@ -74,7 +86,18 @@ return the removed element.
 >>> removeAt 10 [1 .. 5]
 (Nothing,[1,2,3,4,5])
 -}
-removeAt = error "TODO"
+removeAt :: Int -> [a] -> (Maybe a, [a])
+removeAt n list =
+  if length list > n
+  then (Nothing, list)
+  else (Just (list !! n),
+    if n>0
+    then take n list ++ drop (n+1) list
+    else case list of
+      [] -> []
+      _:xs -> xs)
+
+
 
 {- | Write a function that takes a list of lists and returns only
 lists of even lengths.
@@ -85,7 +108,8 @@ lists of even lengths.
 ♫ NOTE: Use eta-reduction and function composition (the dot (.) operator)
   in this function.
 -}
-evenLists = error "TODO"
+evenLists :: [[a]] -> [a]
+evenLists = concat.filter (even.length)
 
 {- | The @dropSpaces@ function takes a string containing a single word
 or number surrounded by spaces and removes all leading and trailing
@@ -101,7 +125,11 @@ spaces.
 
 🕯 HINT: look into Data.Char and Prelude modules for functions you may use.
 -}
-dropSpaces = error "TODO"
+
+
+
+dropSpaces :: [String] -> [String]
+dropSpaces= map (reverse.dropWhile isSpace.reverse.dropWhile isSpace)
 
 {- |
 
@@ -164,7 +192,42 @@ data Knight = Knight
     , knightEndurance :: Int
     }
 
-dragonFight = error "TODO"
+data Color = Red | Green | Black
+
+data Treasure a = BigTreasure
+        {gold :: Int
+        ,trinket :: a} |
+        Smalltreasure
+        {gold :: Int}
+
+
+data Dragon a = Dragon
+    { dragonHealth :: Int
+    , dragonType   :: Color
+    , dragonFirePower :: Int
+    , treasure :: Treasure a
+   }
+
+
+data Outcome a = Flight | Death | Victory (Treasure a, Int)
+
+dragonFight :: Knight -> Dragon a-> Outcome a
+
+dragonFight heroKnight evilDragon =
+  let fight :: Knight -> Dragon a -> Int -> Outcome a
+      fight knight dragon strikes
+        | dragonHealth dragon <= 0 = case dragonType dragon of
+            Green -> Victory (Smalltreasure (gold (treasure dragon)), 250)
+            Black -> Victory (treasure dragon, 150)
+            Red -> Victory (treasure dragon, 100)
+        | knightHealth knight <= 0 = Death
+        | knightEndurance knight == 0 = Flight
+        | strikes == 10 = fight  knight {knightHealth = knightHealth knight - dragonFirePower dragon} dragon 0
+        | otherwise = fight knight dragon {dragonHealth = dragonHealth dragon - knightAttack knight} (strikes + 1)
+  in
+    fight heroKnight evilDragon 0
+
+
 
 ----------------------------------------------------------------------------
 -- Extra Challenges
@@ -185,7 +248,14 @@ False
 True
 -}
 isIncreasing :: [Int] -> Bool
-isIncreasing = error "TODO"
+isIncreasing listo =
+  let funct n list =
+        case list of
+        [] -> True
+        x:xs -> x > n && funct x xs
+  in case listo of
+     [] -> True
+     x:xs -> funct x xs
 
 {- | Implement a function that takes two lists, sorted in the
 increasing order, and merges them into new list, also sorted in the
@@ -198,7 +268,19 @@ verify that.
 [1,2,3,4,7]
 -}
 merge :: [Int] -> [Int] -> [Int]
-merge = error "TODO"
+merge list1 list2 =
+  let helper :: [Int] -> [Int] -> [Int] -> [Int]
+      helper listo1 listo2 acc = 
+        case listo1 of
+        [] -> listo2
+        x:xs -> case listo2 of
+                [] -> acc ++ listo1
+                y:ys -> if y > x 
+                        then helper xs listo2 (x:acc)
+                        else if y < x
+                             then helper listo1 ys (y:acc)
+                             else helper xs ys (y:acc)
+  in helper list1 list2 []
 
 {- | Implement the "Merge Sort" algorithm in Haskell. The @mergeSort@
 function takes a list of numbers and returns a new list containing the
@@ -215,8 +297,14 @@ The algorithm of merge sort is the following:
 [1,2,3]
 -}
 mergeSort :: [Int] -> [Int]
-mergeSort = error "TODO"
-
+mergeSort listo = 
+    let divide :: [Int] -> [[Int]]->[[Int]]
+        divide list acc = 
+          if length list < 2 
+          then list:acc
+          else let n =div (length list) 2
+                in divide (take n list) (divide (drop n list) acc)
+    in  foldl merge [] (divide listo [])
 
 {- | Haskell is famous for being a superb language for implementing
 compilers and interpreters to other programming languages. In the next
@@ -268,7 +356,16 @@ data EvalError
 It returns either a successful evaluation result or an error.
 -}
 eval :: Variables -> Expr -> Either EvalError Int
-eval = error "TODO"
+eval database expression = 
+  case expression of
+  Lit a -> Right a
+  Var string -> case lookup string database of
+                Nothing -> Left (VariableNotFound string)
+                Just a -> Right a
+  Add a b -> case (eval database a, eval database b) of
+              (Left err, _) -> Left err
+              (_, Left err) -> Left err
+              (Right k, Right l) -> Right (k + l)
 
 {- | Compilers also perform optimizations! One of the most common
 optimizations is "Constant Folding". It performs arithmetic operations
@@ -292,4 +389,13 @@ Write a function that takes and expression and performs "Constant
 Folding" optimization on the given expression.
 -}
 constantFolding :: Expr -> Expr
-constantFolding = error "TODO"
+constantFolding expression = 
+          case expression of 
+          Lit a -> Lit a
+          Var a -> Var a
+          Add expl expr -> case (expl, expr) of
+                              (Lit a , Lit b) -> Lit (a + b)
+                              (Lit a, k) -> constantFolding (Add (constantFolding k) (Lit a))
+                              (Var a, k) -> Add (Var a) (constantFolding k)
+                              (l, r) -> constantFolding (Add (constantFolding l) (constantFolding r))
+

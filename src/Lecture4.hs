@@ -103,6 +103,11 @@ module Lecture4
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Semigroup (Max (..), Min (..), Semigroup (..), Sum (..))
 import Text.Read (readMaybe)
+import Data.List (elemIndex)
+import Data.Text (splitOn, unpack, pack)
+import Data.Maybe(catMaybes)
+import System.Environment (getArgs)
+import System.Directory (doesFileExist)
 
 {- In this exercise, instead of writing the entire program from
 scratch, you're offered to complete the missing parts.
@@ -135,12 +140,28 @@ errors. We will simply return an optional result here.
 -}
 
 parseRow :: String -> Maybe Row
-parseRow = error "TODO"
-
+parseRow str =
+   let
+      unpackJust a = case a of
+         Just k -> k
+      numOfOccurences a list acc =
+         case list of
+            [] -> acc
+            x:xs -> if x == a then numOfOccurences a xs (acc + 1) else numOfOccurences a xs acc
+      trim = reverse.dropWhile (' ' ==).reverse.dropWhile (' ' ==)
+      invalidString = numOfOccurences ',' str 0 /= 2
+      (prod, rest1) = (take (unpackJust (elemIndex ',' str)) str, drop (unpackJust (elemIndex ',' str) + 1) str)
+      (tp, rest2) = (case trim (take (unpackJust (elemIndex ',' rest1)) rest1) of
+                     "Buy" -> Just Buy
+                     "Sell" -> Just Sell
+                     _ -> Nothing, drop (unpackJust (elemIndex ',' rest1) + 1) rest1)
+      cost = readMaybe (trim rest2)
+   in if invalidString || prod == "" || tp == Nothing || cost == Nothing then Nothing
+            else Just (Row (trim prod) (unpackJust tp) (unpackJust cost))
 {-
 We have almost all we need to calculate final stats in a simple and
 elegant way.
-
+ 
 To use algebraic abstractions for this problem, let's introduce a
 custom data type for finding the longest product name.
 -}
@@ -157,7 +178,7 @@ string.
 If both strings have the same length, return the first one.
 -}
 instance Semigroup MaxLen where
-
+   MaxLen a <> MaxLen b  = if length a < length b then  MaxLen b else MaxLen a
 
 {-
 It's convenient to represent our stats as a data type that has
@@ -184,7 +205,17 @@ instance for the 'Stats' type itself.
 -}
 
 instance Semigroup Stats where
-
+   (<>) :: Stats -> Stats -> Stats
+   Stats a1 b1 c1 d1 e1 f1 g1 h1 i1 <> Stats a2 b2 c2 d2 e2 f2 g2 h2 i2 =
+      Stats (a1 <> a2)
+            (b1 <> b2)
+            (c1 <> c2)
+            (d1 <> d2)
+            (e1 <> e2)
+            (f1 <> f2)
+            (g1 <> g2)
+            (h1 <> h2)
+            (i1 <> i2)
 
 {-
 The reason for having the 'Stats' data type is to be able to convert
@@ -200,7 +231,23 @@ row in the file.
 -}
 
 rowToStats :: Row -> Stats
-rowToStats = error "TODO"
+rowToStats (Row prod typ cost) =
+   let balance :: TradeType -> Int -> Int
+       balance Buy num = (-num)
+       balance Sell num = num
+       sellCost :: a Int -> Maybe (a Int)
+       sellCost cost = if typ == Sell then Just cost else Nothing
+       buyCost :: a Int -> Maybe (a Int)
+       buyCost cost = if typ == Buy then Just cost else Nothing
+   in Stats 1
+            (Sum (balance typ cost))
+            (Max cost)
+            (Min cost)
+            (sellCost (Max cost))
+            (sellCost (Min cost))
+            (buyCost (Max cost))
+            (buyCost (Min cost))
+            (MaxLen prod)
 
 {-
 Now, after we learned to convert a single row, we can convert a list of rows!
@@ -226,7 +273,7 @@ implement the next task.
 -}
 
 combineRows :: NonEmpty Row -> Stats
-combineRows = error "TODO"
+combineRows (rowsHead :| rowsTail) = sconcat (rowToStats rowsHead :| map rowToStats rowsTail)
 
 {-
 After we've calculated stats for all rows, we can then pretty-print
@@ -236,8 +283,35 @@ If there's no value for a field (for example, there were not "Buy" products),
 you can return string "no value".
 -}
 
+
+
 displayStats :: Stats -> String
-displayStats = error "TODO"
+displayStats (Stats positions total absMax absMin sellMax sellMin buyMax buyMin maxLen) =
+   let showMax (Just (Max a)) = show a
+       showMax Nothing = "No value"
+       showMin (Just (Min a)) = show a
+       showMin Nothing = "No value"
+   in
+       "Total amount of positions: "
+      <> show positions
+      <> "\nBalance in total: "
+      <> show (getSum total)
+      <> "\nAbsolute maximum value: "
+      <> show (getMax absMax)
+      <> "\nAbsolute minimum value: "
+      <> show (getMin absMin)
+      <> "\nMaximum sell revenue: "
+      <> showMax sellMax
+      <> "\nMinimum sell revenue: "
+      <> showMin sellMin
+      <> "\nMaximum buying cost: "
+      <> showMax buyMax
+      <> "\nMinimum buying cost: "
+      <> showMin buyMin
+      <> "\nLongest product name: "
+      <> unMaxLen maxLen
+
+
 
 {-
 Now, we definitely have all the pieces in places! We can write a
@@ -257,7 +331,17 @@ the file doesn't have any products.
 -}
 
 calculateStats :: String -> String
-calculateStats = error "TODO"
+calculateStats str =
+   if   str == ""
+   then "The file does not contain any transactions"
+   else let stringList = lines str
+            mayberowList = map parseRow stringList
+            rowList = catMaybes mayberowList
+            nonEmptyRowList = head rowList :| tail rowList
+            finalStats = combineRows nonEmptyRowList
+         in displayStats finalStats  
+
+
 
 {- The only thing left is to write a function with side-effects that
 takes a path to a file, reads its content, calculates stats and prints
@@ -267,7 +351,11 @@ Use functions 'readFile' and 'putStrLn' here.
 -}
 
 printProductStats :: FilePath -> IO ()
-printProductStats = error "TODO"
+printProductStats path= do 
+                        entireFile <- readFile path
+                        let printableStats = calculateStats entireFile
+                        putStrLn printableStats
+                  
 
 {-
 Okay, I lied. This is not the last thing. Now, we need to wrap
@@ -283,7 +371,16 @@ https://hackage.haskell.org/package/base-4.16.0.0/docs/System-Environment.html#v
 -}
 
 main :: IO ()
-main = error "TODO"
+main = do 
+       pathList <- getArgs 
+       let transformPath string = 
+               do check <- doesFileExist string 
+                  if check
+                  then printProductStats string
+                  else print ("No file found at directory: " <> string)
+        in mapM_ transformPath pathList
+            
+       
 
 
 {-
